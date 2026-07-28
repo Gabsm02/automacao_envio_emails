@@ -26,6 +26,7 @@ def carregar_base_detentoras():
             "State / Province",
             "Detentora (Original)",
             "Detentora (Referência)",
+            "ID Detentora",
             "Updated",
         ],
     )
@@ -56,38 +57,47 @@ def carregar_emails_detentoras():
     return emails_por_detentora
 
 
-def listar_imagens():
+def listar_grupos_imagens():
+    """Cada subpasta de imagens/ representa um UFSigla; retorna {nome_da_pasta: [caminhos das imagens]}."""
     if not os.path.isdir(IMAGENS_DIR):
-        return []
-    arquivos = []
+        return {}
+    grupos = {}
     for nome in os.listdir(IMAGENS_DIR):
-        caminho = os.path.join(IMAGENS_DIR, nome)
-        _, ext = os.path.splitext(nome)
-        if os.path.isfile(caminho) and ext.lower() in EXTENSOES_IMAGEM:
-            arquivos.append(nome)
-    return arquivos
+        caminho_pasta = os.path.join(IMAGENS_DIR, nome)
+        if not os.path.isdir(caminho_pasta):
+            continue
+        imagens = []
+        for arquivo in os.listdir(caminho_pasta):
+            caminho_arquivo = os.path.join(caminho_pasta, arquivo)
+            _, ext = os.path.splitext(arquivo)
+            if os.path.isfile(caminho_arquivo) and ext.lower() in EXTENSOES_IMAGEM:
+                imagens.append(caminho_arquivo)
+        if imagens:
+            grupos[nome] = imagens
+    return grupos
 
 
-def montar_rascunho(outlook, emails, ufsigla, detentora, caminho_imagem):
+def montar_rascunho(outlook, emails, ufsigla, detentora, id_detentora, caminhos_imagens):
     mail = outlook.CreateItem(0)
     mail.To = ";".join(emails)
     mail.Subject = f"Documentação - Site {ufsigla}"
     mail.Body = (
         f"Prezados,\n\n"
-        f"Segue em anexo a imagem referente ao site {ufsigla} (detentora {detentora}).\n\n"
+        f"Segue(m) em anexo a(s) imagem(ns) referente(s) ao site {ufsigla} (detentora {detentora}, ID Detentora {id_detentora}).\n\n"
         f"Atenciosamente."
     )
-    mail.Attachments.Add(caminho_imagem)
+    for caminho_imagem in caminhos_imagens:
+        mail.Attachments.Add(caminho_imagem)
     mail.Display()
 
 
 def main():
     base_detentoras = carregar_base_detentoras()
     emails_detentoras = carregar_emails_detentoras()
-    imagens = listar_imagens()
+    grupos_imagens = listar_grupos_imagens()
 
-    if not imagens:
-        print(f"Nenhuma imagem encontrada em '{IMAGENS_DIR}'.")
+    if not grupos_imagens:
+        print(f"Nenhuma pasta de imagens encontrada em '{IMAGENS_DIR}'.")
         return
 
     outlook = win32com.client.Dispatch("Outlook.Application")
@@ -95,32 +105,31 @@ def main():
     processados = 0
     pulados = 0
 
-    for nome_arquivo in imagens:
-        ufsigla, _ = os.path.splitext(nome_arquivo)
+    for ufsigla, caminhos_imagens in grupos_imagens.items():
         ufsigla_norm = normalizar(ufsigla)
 
         if ufsigla_norm not in base_detentoras.index:
-            print(f"[SKIP] {nome_arquivo}: UFSigla não encontrado em BA/SE/AL")
+            print(f"[SKIP] {ufsigla}: UFSigla não encontrado em BA/SE/AL")
             pulados += 1
             continue
 
         detentora = base_detentoras.loc[ufsigla_norm, "detentora_resolvida"]
         detentora_norm = normalizar(detentora)
+        id_detentora = base_detentoras.loc[ufsigla_norm, "ID Detentora"]
 
         if not detentora_norm:
-            print(f"[SKIP] {nome_arquivo}: sem detentora associada")
+            print(f"[SKIP] {ufsigla}: sem detentora associada")
             pulados += 1
             continue
 
         emails = emails_detentoras.get(detentora_norm)
         if not emails:
-            print(f"[SKIP] {nome_arquivo}: detentora '{detentora}' sem email cadastrado")
+            print(f"[SKIP] {ufsigla}: detentora '{detentora}' sem email cadastrado")
             pulados += 1
             continue
 
-        caminho_imagem = os.path.join(IMAGENS_DIR, nome_arquivo)
-        montar_rascunho(outlook, emails, ufsigla, detentora, caminho_imagem)
-        print(f"[OK] {nome_arquivo}: rascunho aberto para {detentora} ({', '.join(emails)})")
+        montar_rascunho(outlook, emails, ufsigla, detentora, id_detentora, caminhos_imagens)
+        print(f"[OK] {ufsigla}: rascunho aberto para {detentora} ({', '.join(emails)}) com {len(caminhos_imagens)} imagem(ns)")
         processados += 1
 
     print(f"\nResumo: {processados} rascunho(s) aberto(s), {pulados} pulado(s).")
