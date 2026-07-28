@@ -106,7 +106,7 @@ HTML_TEMPLATE = """\
         <tr>
           <td width="4" bgcolor="#4B2E83"></td>
           <td style="padding:6px 0 6px 14px; color:#4B2E83; font-size:14px; line-height:20px;">
-            Identificada <b>vegetação alta (mato alto)</b> no site <b>{ufsigla}</b> (detentora <b>{detentora}</b>, ID Detentora <b>{id_detentora}</b>), presente(s) no(s) anexo(s), evidenciando que o acordo de manutenção e zeladoria está sendo descumprido.
+            Identificada <b>vegetação alta (mato alto)</b> no site <b>{ufsigla}</b> (ID Detentora <b>{id_detentora}</b>), presente(s) no(s) anexo(s), evidenciando que o acordo de manutenção e zeladoria está sendo descumprido.
           </td>
         </tr>
       </table>
@@ -136,6 +136,7 @@ HTML_TEMPLATE = """\
 
 def montar_rascunho(outlook, emails, ufsigla, detentora, id_detentora, caminhos_imagens):
     mail = outlook.CreateItem(0)
+    mail.CC = 'jobson.silva@telefonica.com'
     mail.To = ";".join(emails)
     mail.Subject = f"Solicitação de Poda - Site {ufsigla}"
     mail.HTMLBody = HTML_TEMPLATE.format(
