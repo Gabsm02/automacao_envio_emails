@@ -77,14 +77,69 @@ def listar_grupos_imagens():
     return grupos
 
 
+HTML_TEMPLATE = """\
+<html>
+<body style="margin:0; padding:0; background-color:#f2f2f2; font-family:Calibri,Arial,sans-serif;">
+<table width="700" align="center" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-collapse:collapse;">
+  <tr>
+    <td bgcolor="#4B2E83" style="padding:22px 30px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="color:#ffffff; font-size:22px; font-weight:bold;">Zeladoria</td>
+          <td align="right" style="color:#e6e0f0; font-size:11px; letter-spacing:1px;">ALERTA DE VEGETAÇÃO ALTA</td>
+        </tr>
+        <tr>
+          <td colspan="2" style="color:#c9bfe0; font-size:11px;">GENESIS</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:30px;">
+      <p style="color:#4B2E83; font-size:20px; font-weight:bold; margin:0 0 8px 0;">Solicitação de Poda</p>
+      <hr style="border:none; border-top:1px solid #d9d9d9; margin:0 0 18px 0;">
+      <p style="color:#4B2E83; font-weight:bold; margin:0 0 14px 0;">Prezado(a),</p>
+      <p style="color:#333333; font-size:14px; line-height:20px; margin:0 0 16px 0;">
+        Por meio desta notificação, servimo-nos do presente para expor e requerer o que segue:
+      </p>
+      <table cellpadding="0" cellspacing="0" style="margin:0 0 16px 0;">
+        <tr>
+          <td width="4" bgcolor="#4B2E83"></td>
+          <td style="padding:6px 0 6px 14px; color:#4B2E83; font-size:14px; line-height:20px;">
+            Identificada <b>vegetação alta (mato alto)</b> no site <b>{ufsigla}</b> (detentora <b>{detentora}</b>, ID Detentora <b>{id_detentora}</b>), presente(s) no(s) anexo(s), evidenciando que o acordo de manutenção e zeladoria está sendo descumprido.
+          </td>
+        </tr>
+      </table>
+      <p style="color:#333333; font-size:14px; line-height:20px; margin:0 0 16px 0;">
+        A falta de poda no local já apresenta risco iminente de impactar diretamente a rede e interromper os serviços.
+      </p>
+      <p style="color:#333333; font-size:14px; line-height:20px; margin:0 0 24px 0;">
+        Diante do exposto, solicitamos a validação imediata destas ocorrências e resolução das falhas apresentadas. O não cumprimento da poda no prazo estipulado configurará mora contratual definitiva.
+      </p>
+    </td>
+  </tr>
+  <tr>
+    <td bgcolor="#4B2E83" align="center" style="padding:14px;">
+      <span style="color:#ffffff; font-size:16px;">&#10022;</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:16px 30px; color:#999999; font-size:10px; line-height:14px;">
+      Esta é uma notificação automática referente ao acordo de manutenção e zeladoria. Em caso de dúvidas, entre em contato com a equipe responsável.
+    </td>
+  </tr>
+</table>
+</body>
+</html>
+"""
+
+
 def montar_rascunho(outlook, emails, ufsigla, detentora, id_detentora, caminhos_imagens):
     mail = outlook.CreateItem(0)
     mail.To = ";".join(emails)
-    mail.Subject = f"Documentação - Site {ufsigla}"
-    mail.Body = (
-        f"Prezados,\n\n"
-        f"Segue(m) em anexo a(s) imagem(ns) referente(s) ao site {ufsigla} (detentora {detentora}, ID Detentora {id_detentora}).\n\n"
-        f"Atenciosamente."
+    mail.Subject = f"Solicitação de Poda - Site {ufsigla}"
+    mail.HTMLBody = HTML_TEMPLATE.format(
+        ufsigla=ufsigla, detentora=detentora, id_detentora=id_detentora
     )
     for caminho_imagem in caminhos_imagens:
         mail.Attachments.Add(caminho_imagem)
