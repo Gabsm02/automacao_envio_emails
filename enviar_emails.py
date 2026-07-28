@@ -88,9 +88,6 @@ HTML_TEMPLATE = """\
           <td style="color:#ffffff; font-size:22px; font-weight:bold;">Zeladoria</td>
           <td align="right" style="color:#e6e0f0; font-size:11px; letter-spacing:1px;">ALERTA DE VEGETAÇÃO ALTA</td>
         </tr>
-        <tr>
-          <td colspan="2" style="color:#c9bfe0; font-size:11px;">GENESIS</td>
-        </tr>
       </table>
     </td>
   </tr>
