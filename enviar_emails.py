@@ -141,7 +141,7 @@ def montar_rascunho(outlook, emails, ufsigla, detentora, id_detentora, caminhos_
     )
     for caminho_imagem in caminhos_imagens:
         mail.Attachments.Add(caminho_imagem)
-    mail.Send()
+    mail.Display()
 
 
 def main():
