@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 import pandas as pd
 import win32com.client
@@ -7,6 +8,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 IMAGENS_DIR = os.path.join(BASE_DIR, "imagens")
 BASE_DETENTORAS_PATH = os.path.join(BASE_DIR, "base_detentoras.xlsx")
 DETENTORAS_PATH = os.path.join(BASE_DIR, "detentoras.xlsx")
+HISTORICO_PATH = os.path.join(BASE_DIR, "historico_envios.xlsx")
 ESTADOS_FILTRO = {"BA", "SE", "AL"}
 EXTENSOES_IMAGEM = {".png", ".jpg", ".jpeg"}
 
@@ -131,6 +133,16 @@ HTML_TEMPLATE = """\
 """
 
 
+def registrar_historico(registros):
+    novo_df = pd.DataFrame(registros, columns=["UFSIGLA", "DETENTORA", "EMAIL", "DATA_ENVIO"])
+    if os.path.exists(HISTORICO_PATH):
+        existente = pd.read_excel(HISTORICO_PATH)
+        historico = pd.concat([existente, novo_df], ignore_index=True)
+    else:
+        historico = novo_df
+    historico.to_excel(HISTORICO_PATH, index=False)
+
+
 def montar_rascunho(outlook, emails, ufsigla, detentora, id_detentora, caminhos_imagens):
     mail = outlook.CreateItem(0)
     mail.CC = 'jobson.silva@telefonica.com'
@@ -157,6 +169,7 @@ def main():
 
     processados = 0
     pulados = 0
+    registros_historico = []
 
     for ufsigla, caminhos_imagens in grupos_imagens.items():
         ufsigla_norm = normalizar(ufsigla)
@@ -184,6 +197,16 @@ def main():
         montar_rascunho(outlook, emails, ufsigla, detentora, id_detentora, caminhos_imagens)
         print(f"[OK] {ufsigla}: rascunho aberto para {detentora} ({', '.join(emails)}) com {len(caminhos_imagens)} imagem(ns)")
         processados += 1
+        registros_historico.append({
+            "UFSIGLA": ufsigla,
+            "DETENTORA": detentora,
+            "EMAIL": "; ".join(emails),
+            "DATA_ENVIO": datetime.now().strftime("%d/%m/%Y %H:%M"),
+        })
+
+    if registros_historico:
+        registrar_historico(registros_historico)
+        print(f"Histórico atualizado em '{HISTORICO_PATH}' ({len(registros_historico)} registro(s)).")
 
     print(f"\nResumo: {processados} rascunho(s) aberto(s), {pulados} pulado(s).")
 
