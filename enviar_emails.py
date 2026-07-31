@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 import win32com.client
@@ -11,12 +11,18 @@ DETENTORAS_PATH = os.path.join(BASE_DIR, "detentoras.xlsx")
 HISTORICO_PATH = os.path.join(BASE_DIR, "historico_envios.xlsx")
 ESTADOS_FILTRO = {"BA", "SE", "AL"}
 EXTENSOES_IMAGEM = {".png", ".jpg", ".jpeg"}
+DIAS_LIMITE_COBRANCA = 10
+VALORES_CORRIGIDO = {"SIM", "S", "X", "OK"}
 
 
 def normalizar(valor):
     if pd.isna(valor):
         return ""
     return str(valor).strip().upper()
+
+
+def esta_corrigido(valor):
+    return normalizar(valor) in VALORES_CORRIGIDO
 
 
 def carregar_base_detentoras():
@@ -133,8 +139,62 @@ HTML_TEMPLATE = """\
 """
 
 
+COBRANCA_HTML_TEMPLATE = """\
+<html>
+<body style="margin:0; padding:0; background-color:#f2f2f2; font-family:Calibri,Arial,sans-serif;">
+<table width="700" align="center" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-collapse:collapse;">
+  <tr>
+    <td bgcolor="#4B2E83" style="padding:22px 30px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="color:#ffffff; font-size:22px; font-weight:bold;">Zeladoria</td>
+          <td align="right" style="color:#e6e0f0; font-size:11px; letter-spacing:1px;">COBRANÇA DE SOLUÇÃO</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:30px;">
+      <p style="color:#4B2E83; font-size:20px; font-weight:bold; margin:0 0 8px 0;">Cobrança - Solicitação de Poda</p>
+      <hr style="border:none; border-top:1px solid #d9d9d9; margin:0 0 18px 0;">
+      <p style="color:#4B2E83; font-weight:bold; margin:0 0 14px 0;">Prezado(a),</p>
+      <p style="color:#333333; font-size:14px; line-height:20px; margin:0 0 16px 0;">
+        Reiteramos a notificação enviada em <b>{data_envio}</b> referente à vegetação alta (mato alto) identificada no site <b>{ufsigla}</b> (ID Detentora <b>{id_detentora}</b>).
+      </p>
+      <table cellpadding="0" cellspacing="0" style="margin:0 0 16px 0;">
+        <tr>
+          <td width="4" bgcolor="#4B2E83"></td>
+          <td style="padding:6px 0 6px 14px; color:#4B2E83; font-size:14px; line-height:20px;">
+            Já se passaram <b>{dias} dias</b> sem confirmação da resolução da poda, configurando descumprimento do acordo de manutenção e zeladoria.
+          </td>
+        </tr>
+      </table>
+      <p style="color:#333333; font-size:14px; line-height:20px; margin:0 0 24px 0;">
+        Diante do exposto, solicitamos providências imediatas para a solução da ocorrência. A manutenção da pendência configura mora contratual definitiva.
+      </p>
+    </td>
+  </tr>
+  <tr>
+    <td bgcolor="#4B2E83" align="center" style="padding:14px;">
+      <span style="color:#ffffff; font-size:16px;">&#10022;</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:16px 30px; color:#999999; font-size:10px; line-height:14px;">
+      Esta é uma notificação automática referente ao acordo de manutenção e zeladoria. Em caso de dúvidas, entre em contato com a equipe responsável.
+    </td>
+  </tr>
+</table>
+</body>
+</html>
+"""
+
+
 def registrar_historico(registros):
-    novo_df = pd.DataFrame(registros, columns=["UFSIGLA", "DETENTORA", "EMAIL", "DATA_ENVIO"])
+    novo_df = pd.DataFrame(
+        registros,
+        columns=["UFSIGLA", "DETENTORA", "EMAIL", "DATA_ENVIO", "CORRIGIDO", "DATA_COBRANCA"],
+    )
     if os.path.exists(HISTORICO_PATH):
         existente = pd.read_excel(HISTORICO_PATH)
         historico = pd.concat([existente, novo_df], ignore_index=True)
@@ -154,6 +214,68 @@ def montar_rascunho(outlook, emails, ufsigla, detentora, id_detentora, caminhos_
     for caminho_imagem in caminhos_imagens:
         mail.Attachments.Add(caminho_imagem)
     mail.Display()
+
+
+def montar_cobranca(outlook, emails, ufsigla, id_detentora, data_envio, dias, caminhos_imagens):
+    mail = outlook.CreateItem(0)
+    mail.CC = 'jobson.silva@telefonica.com'
+    mail.To = ";".join(emails)
+    mail.Subject = f"[COBRANÇA] Solicitação de Poda - Site {ufsigla}"
+    mail.HTMLBody = COBRANCA_HTML_TEMPLATE.format(
+        ufsigla=ufsigla, id_detentora=id_detentora, data_envio=data_envio, dias=dias
+    )
+    for caminho_imagem in caminhos_imagens:
+        mail.Attachments.Add(caminho_imagem)
+    mail.Display()
+
+
+def verificar_cobrancas(outlook, base_detentoras, grupos_imagens):
+    """Reabre notificação (modo cobrança) para envios com mais de DIAS_LIMITE_COBRANCA dias e ainda não marcados como CORRIGIDO."""
+    if not os.path.exists(HISTORICO_PATH):
+        return
+
+    historico = pd.read_excel(HISTORICO_PATH)
+    for coluna, padrao in (("CORRIGIDO", "NAO"), ("DATA_COBRANCA", "")):
+        if coluna not in historico.columns:
+            historico[coluna] = padrao
+        historico[coluna] = historico[coluna].astype(object)
+
+    historico["_data_envio_dt"] = pd.to_datetime(historico["DATA_ENVIO"], dayfirst=True, errors="coerce")
+    limite = datetime.now() - timedelta(days=DIAS_LIMITE_COBRANCA)
+
+    cobrancas_enviadas = 0
+    for indice, linha in historico.iterrows():
+        if esta_corrigido(linha["CORRIGIDO"]):
+            continue
+        if pd.notna(linha["DATA_COBRANCA"]) and str(linha["DATA_COBRANCA"]).strip():
+            continue
+        data_envio_dt = linha["_data_envio_dt"]
+        if pd.isna(data_envio_dt) or data_envio_dt > limite:
+            continue
+
+        ufsigla = linha["UFSIGLA"]
+        detentora = linha["DETENTORA"]
+        emails = [e.strip() for e in str(linha["EMAIL"]).split(";") if e.strip()]
+        if not emails:
+            continue
+
+        ufsigla_norm = normalizar(ufsigla)
+        id_detentora = base_detentoras.loc[ufsigla_norm, "ID Detentora"] if ufsigla_norm in base_detentoras.index else ""
+        dias_passados = (datetime.now() - data_envio_dt).days
+        caminhos_imagens = grupos_imagens.get(ufsigla, [])
+
+        montar_cobranca(
+            outlook, emails, ufsigla, id_detentora,
+            data_envio_dt.strftime("%d/%m/%Y"), dias_passados, caminhos_imagens,
+        )
+        print(f"[COBRANÇA] {ufsigla}: rascunho de cobrança aberto para {detentora} ({', '.join(emails)}) - {dias_passados} dia(s) sem correção")
+
+        historico.at[indice, "DATA_COBRANCA"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+        cobrancas_enviadas += 1
+
+    if cobrancas_enviadas:
+        historico.drop(columns=["_data_envio_dt"]).to_excel(HISTORICO_PATH, index=False)
+        print(f"Histórico atualizado com {cobrancas_enviadas} cobrança(s) registrada(s).")
 
 
 def main():
@@ -202,6 +324,8 @@ def main():
             "DETENTORA": detentora,
             "EMAIL": "; ".join(emails),
             "DATA_ENVIO": datetime.now().strftime("%d/%m/%Y %H:%M"),
+            "CORRIGIDO": "NAO",
+            "DATA_COBRANCA": "",
         })
 
     if registros_historico:
@@ -209,6 +333,8 @@ def main():
         print(f"Histórico atualizado em '{HISTORICO_PATH}' ({len(registros_historico)} registro(s)).")
 
     print(f"\nResumo: {processados} rascunho(s) aberto(s), {pulados} pulado(s).")
+
+    verificar_cobrancas(outlook, base_detentoras, grupos_imagens)
 
 
 if __name__ == "__main__":
