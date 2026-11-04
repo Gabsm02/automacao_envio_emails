@@ -193,7 +193,7 @@ COBRANCA_HTML_TEMPLATE = """\
 def registrar_historico(registros):
     novo_df = pd.DataFrame(
         registros,
-        columns=["UFSIGLA", "DETENTORA", "EMAIL", "DATA_ENVIO", "CORRIGIDO", "DATA_COBRANCA"],
+        columns=["UFSIGLA", "DETENTORA", "ID Detentora", "EMAIL", "DATA_ENVIO", "CORRIGIDO", "DATA_COBRANCA"],
     )
     if os.path.exists(HISTORICO_PATH):
         existente = pd.read_excel(HISTORICO_PATH)
@@ -322,9 +322,10 @@ def main():
         registros_historico.append({
             "UFSIGLA": ufsigla,
             "DETENTORA": detentora,
+            "ID Detentora":id_detentora,
             "EMAIL": "; ".join(emails),
             "DATA_ENVIO": datetime.now().strftime("%d/%m/%Y %H:%M"),
-            "CORRIGIDO": "NAO",
+            "  GIDO": "NAO",
             "DATA_COBRANCA": "",
         })
 
