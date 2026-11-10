@@ -1,12 +1,3 @@
-"""
-Dashboard do histórico de envios às detentoras.
-
-Instalação: pip install -U streamlit plotly pandas openpyxl
-Execução:   streamlit run dashboard.py
-
-Deixe o arquivo historico_envios.xlsx na mesma pasta deste script.
-"""
-
 import re
 from pathlib import Path
 
