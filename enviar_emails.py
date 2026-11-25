@@ -66,7 +66,6 @@ def carregar_emails_detentoras():
 
 
 def listar_grupos_imagens():
-    """Cada subpasta de imagens/ representa um UFSigla; retorna {nome_da_pasta: [caminhos das imagens]}."""
     if not os.path.isdir(IMAGENS_DIR):
         return {}
     grupos = {}
@@ -193,7 +192,15 @@ COBRANCA_HTML_TEMPLATE = """\
 def registrar_historico(registros):
     novo_df = pd.DataFrame(
         registros,
-        columns=["UFSIGLA", "DETENTORA", "ID Detentora", "EMAIL", "DATA_ENVIO", "CORRIGIDO", "DATA_COBRANCA"],
+        columns=[
+            "UFSIGLA",
+            "DETENTORA",
+            "ID Detentora",
+            "EMAIL",
+            "DATA_ENVIO",
+            "CORRIGIDO",
+            "DATA_COBRANCA",
+        ],
     )
     if os.path.exists(HISTORICO_PATH):
         existente = pd.read_excel(HISTORICO_PATH)
@@ -203,9 +210,11 @@ def registrar_historico(registros):
     historico.to_excel(HISTORICO_PATH, index=False)
 
 
-def montar_rascunho(outlook, emails, ufsigla, detentora, id_detentora, caminhos_imagens):
+def montar_rascunho(
+    outlook, emails, ufsigla, detentora, id_detentora, caminhos_imagens
+):
     mail = outlook.CreateItem(0)
-    mail.CC = 'jobson.silva@telefonica.com'
+    mail.CC = "jobson.silva@telefonica.com"
     mail.To = ";".join(emails)
     mail.Subject = f"Solicitação de Poda - Site {ufsigla}"
     mail.HTMLBody = HTML_TEMPLATE.format(
@@ -216,9 +225,11 @@ def montar_rascunho(outlook, emails, ufsigla, detentora, id_detentora, caminhos_
     mail.Display()
 
 
-def montar_cobranca(outlook, emails, ufsigla, id_detentora, data_envio, dias, caminhos_imagens):
+def montar_cobranca(
+    outlook, emails, ufsigla, id_detentora, data_envio, dias, caminhos_imagens
+):
     mail = outlook.CreateItem(0)
-    mail.CC = 'jobson.silva@telefonica.com'
+    mail.CC = "jobson.silva@telefonica.com"
     mail.To = ";".join(emails)
     mail.Subject = f"[COBRANÇA] Solicitação de Poda - Site {ufsigla}"
     mail.HTMLBody = COBRANCA_HTML_TEMPLATE.format(
@@ -240,7 +251,9 @@ def verificar_cobrancas(outlook, base_detentoras, grupos_imagens):
             historico[coluna] = padrao
         historico[coluna] = historico[coluna].astype(object)
 
-    historico["_data_envio_dt"] = pd.to_datetime(historico["DATA_ENVIO"], dayfirst=True, errors="coerce")
+    historico["_data_envio_dt"] = pd.to_datetime(
+        historico["DATA_ENVIO"], dayfirst=True, errors="coerce"
+    )
     limite = datetime.now() - timedelta(days=DIAS_LIMITE_COBRANCA)
 
     cobrancas_enviadas = 0
@@ -260,22 +273,37 @@ def verificar_cobrancas(outlook, base_detentoras, grupos_imagens):
             continue
 
         ufsigla_norm = normalizar(ufsigla)
-        id_detentora = base_detentoras.loc[ufsigla_norm, "ID Detentora"] if ufsigla_norm in base_detentoras.index else ""
+        id_detentora = (
+            base_detentoras.loc[ufsigla_norm, "ID Detentora"]
+            if ufsigla_norm in base_detentoras.index
+            else ""
+        )
         dias_passados = (datetime.now() - data_envio_dt).days
         caminhos_imagens = grupos_imagens.get(ufsigla, [])
 
         montar_cobranca(
-            outlook, emails, ufsigla, id_detentora,
-            data_envio_dt.strftime("%d/%m/%Y"), dias_passados, caminhos_imagens,
+            outlook,
+            emails,
+            ufsigla,
+            id_detentora,
+            data_envio_dt.strftime("%d/%m/%Y"),
+            dias_passados,
+            caminhos_imagens,
         )
-        print(f"[COBRANÇA] {ufsigla}: rascunho de cobrança aberto para {detentora} ({', '.join(emails)}) - {dias_passados} dia(s) sem correção")
+        print(
+            f"[COBRANÇA] {ufsigla}: rascunho de cobrança aberto para {detentora} ({', '.join(emails)}) - {dias_passados} dia(s) sem correção"
+        )
 
-        historico.at[indice, "DATA_COBRANCA"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+        historico.at[indice, "DATA_COBRANCA"] = datetime.now().strftime(
+            "%d/%m/%Y %H:%M"
+        )
         cobrancas_enviadas += 1
 
     if cobrancas_enviadas:
         historico.drop(columns=["_data_envio_dt"]).to_excel(HISTORICO_PATH, index=False)
-        print(f"Histórico atualizado com {cobrancas_enviadas} cobrança(s) registrada(s).")
+        print(
+            f"Histórico atualizado com {cobrancas_enviadas} cobrança(s) registrada(s)."
+        )
 
 
 def main():
@@ -316,22 +344,30 @@ def main():
             pulados += 1
             continue
 
-        montar_rascunho(outlook, emails, ufsigla, detentora, id_detentora, caminhos_imagens)
-        print(f"[OK] {ufsigla}: rascunho aberto para {detentora} ({', '.join(emails)}) com {len(caminhos_imagens)} imagem(ns)")
+        montar_rascunho(
+            outlook, emails, ufsigla, detentora, id_detentora, caminhos_imagens
+        )
+        print(
+            f"[OK] {ufsigla}: rascunho aberto para {detentora} ({', '.join(emails)}) com {len(caminhos_imagens)} imagem(ns)"
+        )
         processados += 1
-        registros_historico.append({
-            "UFSIGLA": ufsigla,
-            "DETENTORA": detentora,
-            "ID Detentora":id_detentora,
-            "EMAIL": "; ".join(emails),
-            "DATA_ENVIO": datetime.now().strftime("%d/%m/%Y %H:%M"),
-            "  GIDO": "NAO",
-            "DATA_COBRANCA": "",
-        })
+        registros_historico.append(
+            {
+                "UFSIGLA": ufsigla,
+                "DETENTORA": detentora,
+                "ID Detentora": id_detentora,
+                "EMAIL": "; ".join(emails),
+                "DATA_ENVIO": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                "CORRIGIDO": "NAO",
+                "DATA_COBRANCA": "",
+            }
+        )
 
     if registros_historico:
         registrar_historico(registros_historico)
-        print(f"Histórico atualizado em '{HISTORICO_PATH}' ({len(registros_historico)} registro(s)).")
+        print(
+            f"Histórico atualizado em '{HISTORICO_PATH}' ({len(registros_historico)} registro(s))."
+        )
 
     print(f"\nResumo: {processados} rascunho(s) aberto(s), {pulados} pulado(s).")
 
